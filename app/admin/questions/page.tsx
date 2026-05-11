@@ -159,7 +159,7 @@ export default function AdminQuestions() {
             </h1>
             <p className="text-slate-400 text-sm">
               {questions.length} questions across{' '}
-              {[...new Set(questions.map((q) => q.company))].length} companies
+              {Array.from(new Set(questions.map((q) => q.company))).length} companies
             </p>
           </div>
           <button
