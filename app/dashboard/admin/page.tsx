@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getSupabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 interface Stats {
   totalUsers: number;
@@ -28,7 +28,6 @@ export default function AdminDashboard() {
 
   async function fetchDashboardData() {
     try {
-      const supabase = getSupabase();
 
       // Fetch statistics
       const { data: users } = await supabase.from('users').select('*');
