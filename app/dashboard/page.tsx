@@ -1,189 +1,166 @@
+'use client';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
-const stats = [
-  { label: 'Total Applied', value: '24', color: 'text-emerald-400' },
-  { label: 'Interviews', value: '3', color: 'text-blue-400' },
-  { label: 'Pending', value: '8', color: 'text-yellow-400' },
-  { label: 'Offers', value: '1', color: 'text-purple-400' },
-];
-
-const recentApps = [
-  {
-    company: 'TCS',
-    role: 'Software Engineer',
-    type: 'job',
-    status: 'Applied',
-    date: '2026-05-05',
-    portal: 'Naukri',
-  },
-  {
-    company: 'Infosys',
-    role: 'SDE Intern',
-    type: 'internship',
-    status: 'Interview',
-    date: '2026-05-04',
-    portal: 'LinkedIn',
-  },
-  {
-    company: 'Wipro',
-    role: 'Data Analyst',
-    type: 'job',
-    status: 'Pending',
-    date: '2026-05-03',
-    portal: 'Indeed',
-  },
-  {
-    company: 'Zoho',
-    role: 'ML Engineer',
-    type: 'job',
-    status: 'Applied',
-    date: '2026-05-02',
-    portal: 'Naukri',
-  },
-  {
-    company: 'Freshworks',
-    role: 'Backend Intern',
-    type: 'internship',
-    status: 'Rejected',
-    date: '2026-05-01',
-    portal: 'Unstop',
-  },
-];
-
-const statusColor: Record<string, string> = {
-  Applied: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
-  Interview: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-  Pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
-  Rejected: 'bg-red-500/10 text-red-400 border-red-500/30',
-  Offer: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+type StatCard = { label: string; value: string | number; color: string; icon: string; link: string; };
+type Application = {
+  id: string;
+  job_id?: string;
+  status: string;
+  applied_at?: string;
+  company?: string;
 };
 
 export default function DashboardPage() {
-  return (
-    <div className="min-h-screen bg-slate-950 p-6">
-      <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Dashboard</h1>
-            <p className="text-slate-400 text-sm">
-              Welcome back! Here is your job search overview.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Link
-              href="/jobs"
-              className="rounded-md border border-slate-700 px-4 py-2 text-sm hover:border-emerald-500 transition-all"
-            >
-              Browse Jobs
-            </Link>
-            <Link
-              href="/resumes"
-              className="rounded-md bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-4 py-2 text-sm transition-all"
-            >
-              Build Resume
-            </Link>
-          </div>
-        </div>
+  const [stats, setStats] = useState<StatCard[]>([
+    { label: 'Total Applied', value: '...', color: 'text-blue-400', icon: '📋', link: '/admin/applications' },
+    { label: 'Interviews', value: '...', color: 'text-emerald-400', icon: '🎯', link: '/admin/applications' },
+    { label: 'Pending', value: '...', color: 'text-amber-400', icon: '⏳', link: '/admin/applications' },
+    { label: 'Offers', value: '...', color: 'text-purple-400', icon: '🎉', link: '/admin/applications' },
+    { label: 'Total Jobs', value: '...', color: 'text-cyan-400', icon: '💼', link: '/jobs' },
+    { label: 'Students', value: '...', color: 'text-pink-400', icon: '👩‍💻', link: '/admin/students' },
+  ]);
+  const [recentApps, setRecentApps] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {stats.map((s) => (
-            <div
-              key={s.label}
-              className="rounded-xl border border-slate-800 bg-slate-900 p-4"
-            >
-              <p className="text-xs text-slate-500">{s.label}</p>
-              <p className={`text-3xl font-bold mt-1 ${s.color}`}>{s.value}</p>
-            </div>
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const [appsRes, jobsRes, studentsRes] = await Promise.all([
+          supabase.from('applications').select('id, status, applied_at'),
+          supabase.from('jobs').select('id', { count: 'exact' }).eq('is_active', true),
+          supabase.from('students').select('id', { count: 'exact' }),
+        ]);
+
+        const apps = appsRes.data || [];
+        const totalApps = apps.length;
+        const interviews = apps.filter((a: any) => a.status === 'Interview' || a.status === 'interview').length;
+        const pending = apps.filter((a: any) => a.status === 'Applied' || a.status === 'Pending' || a.status === 'applied').length;
+        const offers = apps.filter((a: any) => a.status === 'Offer' || a.status === 'offer').length;
+        const jobCount = jobsRes.count || 0;
+        const studentCount = studentsRes.count || 0;
+
+        setStats([
+          { label: 'Total Applied', value: totalApps, color: 'text-blue-400', icon: '📋', link: '/admin/applications' },
+          { label: 'Interviews', value: interviews, color: 'text-emerald-400', icon: '🎯', link: '/admin/applications' },
+          { label: 'Pending', value: pending, color: 'text-amber-400', icon: '⏳', link: '/admin/applications' },
+          { label: 'Offers', value: offers, color: 'text-purple-400', icon: '🎉', link: '/admin/applications' },
+          { label: 'Active Jobs', value: jobCount, color: 'text-cyan-400', icon: '💼', link: '/jobs' },
+          { label: 'Students', value: studentCount, color: 'text-pink-400', icon: '👩‍💻', link: '/admin/students' },
+        ]);
+
+        const { data: recentData } = await supabase
+          .from('applications')
+          .select('id, status, applied_at')
+          .order('applied_at', { ascending: false })
+          .limit(5);
+        setRecentApps(recentData || []);
+      } catch (e) {
+        console.error('Dashboard error:', e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadStats();
+  }, []);
+
+  const statusColors: Record<string, string> = {
+    Applied: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    applied: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    Interview: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    interview: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    Pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    Offer: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    offer: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    Rejected: 'bg-red-500/10 text-red-400 border-red-500/20',
+    rejected: 'bg-red-500/10 text-red-400 border-red-500/20',
+  };
+
+  const quickActions = [
+    { label: 'Browse Jobs', href: '/jobs', icon: '🔍', desc: 'Find new opportunities' },
+    { label: 'Build Resume', href: '/resumes', icon: '📄', desc: 'Create ATS-ready resume' },
+    { label: 'AI Tailor', href: '/tailor', icon: '🤖', desc: 'Tailor resume to JD' },
+    { label: 'Interview Prep', href: '/interview', icon: '🎯', desc: 'Practice with AI' },
+    { label: 'Companies', href: '/company', icon: '🏢', desc: 'Explore top employers' },
+    { label: 'Post a Job', href: '/dashboard/post-job', icon: '➕', desc: 'Add new job listing' },
+  ];
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-white">
+      <div className="max-w-6xl mx-auto px-4 py-12">
+        <div className="mb-10">
+          <h1 className="text-3xl font-bold mb-2">Your <span className="text-emerald-400">Dashboard</span></h1>
+          <p className="text-slate-400">Track your job search progress and manage applications</p>
+        </div>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
+          {stats.map(stat => (
+            <Link key={stat.label} href={stat.link}
+              className="bg-slate-900 border border-slate-800 rounded-xl p-4 hover:border-emerald-500/50 transition-all text-center group">
+              <div className="text-2xl mb-2">{stat.icon}</div>
+              <div className={`text-2xl font-bold ${stat.color} mb-1`}>
+                {loading ? '...' : stat.value}
+              </div>
+              <div className="text-xs text-slate-500 group-hover:text-slate-400">{stat.label}</div>
+            </Link>
           ))}
         </div>
-
         {/* Quick Actions */}
-        <div className="grid md:grid-cols-3 gap-4">
-          <Link
-            href="/jobs"
-            className="rounded-xl border border-slate-800 bg-slate-900 p-5 hover:border-emerald-500 transition-all"
-          >
-            <div className="text-2xl mb-2">&#128269;</div>
-            <h3 className="font-semibold">Find Jobs &amp; Internships</h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Search Naukri, LinkedIn, Indeed and more
-            </p>
-          </Link>
-          <Link
-            href="/tailor"
-            className="rounded-xl border border-slate-800 bg-slate-900 p-5 hover:border-emerald-500 transition-all"
-          >
-            <div className="text-2xl mb-2">&#129302;</div>
-            <h3 className="font-semibold">AI Resume Tailor</h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Paste JD and get tailored resume instantly
-            </p>
-          </Link>
-          <Link
-            href="/automation"
-            className="rounded-xl border border-slate-800 bg-slate-900 p-5 hover:border-emerald-500 transition-all"
-          >
-            <div className="text-2xl mb-2">&#9889;</div>
-            <h3 className="font-semibold">Auto-Apply Engine</h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Schedule auto-apply across all portals
-            </p>
-          </Link>
-        </div>
-
-        {/* Recent Applications */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900">
-          <div className="flex items-center justify-between p-5 border-b border-slate-800">
-            <h2 className="font-semibold">Recent Applications</h2>
-            <Link
-              href="/applications"
-              className="text-xs text-emerald-400 hover:underline"
-            >
-              View all
-            </Link>
-          </div>
-          <div className="divide-y divide-slate-800">
-            {recentApps.map((a, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between px-5 py-3"
-              >
-                <div>
-                  <p className="font-medium text-sm">{a.role}</p>
-                  <p className="text-xs text-slate-400">
-                    {a.company} • {a.portal} • {a.type}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-500">{a.date}</span>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full border ${
-                      statusColor[a.status] || ''
-                    }`}
-                  >
-                    {a.status}
-                  </span>
-                </div>
-              </div>
+        <div className="mb-10">
+          <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {quickActions.map(action => (
+              <Link key={action.label} href={action.href}
+                className="bg-slate-900 border border-slate-800 rounded-xl p-4 hover:border-emerald-500/50 transition-all group">
+                <div className="text-2xl mb-2">{action.icon}</div>
+                <div className="text-sm font-medium text-white group-hover:text-emerald-400 mb-1">{action.label}</div>
+                <div className="text-xs text-slate-500">{action.desc}</div>
+              </Link>
             ))}
           </div>
         </div>
-
-        {/* Upcoming Interviews */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-          <h2 className="font-semibold mb-4">Upcoming Interviews</h2>
-          <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-4">
-            <p className="text-sm font-medium text-emerald-400">
-              Infosys - SDE Intern Interview
-            </p>
-            <p className="text-xs text-slate-400 mt-1">
-              May 08, 2026 at 11:00 AM IST • Google Meet • Technical Round
-            </p>
+        {/* Recent Applications */}
+        <div className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Recent Applications</h2>
+            <Link href="/admin/applications" className="text-emerald-400 text-sm hover:underline">View all</Link>
           </div>
+          {loading ? (
+            <div className="text-slate-500 text-center py-8">Loading...</div>
+          ) : recentApps.length === 0 ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
+              <p className="text-slate-500 mb-4">No applications yet</p>
+              <Link href="/jobs" className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-lg text-sm">Browse Jobs</Link>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentApps.map(app => (
+                <div key={app.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-white font-medium">Application #{app.id.slice(0, 8)}</p>
+                    <p className="text-slate-500 text-sm">{app.applied_at ? new Date(app.applied_at).toLocaleDateString('en-IN') : 'N/A'}</p>
+                  </div>
+                  <span className={`text-xs border px-3 py-1 rounded-full ${statusColors[app.status] || statusColors['Pending']}`}>
+                    {app.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* Admin Panel Link */}
+        <div className="bg-gradient-to-r from-emerald-500/10 to-blue-500/10 border border-emerald-500/20 rounded-xl p-6 flex items-center justify-between">
+          <div>
+            <h3 className="text-white font-semibold text-lg mb-1">Admin Panel</h3>
+            <p className="text-slate-400 text-sm">Manage jobs, companies, students, and applications</p>
+          </div>
+          <Link href="/admin" className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-lg text-sm font-medium">
+            Go to Admin
+          </Link>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
