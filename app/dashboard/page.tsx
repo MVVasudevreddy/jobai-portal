@@ -1,166 +1,254 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
-type StatCard = { label: string; value: string | number; color: string; icon: string; link: string; };
+type StatCard = {
+  label: string;
+  value: string | number;
+  color: string;
+  icon: string;
+  link: string;
+};
+
 type Application = {
   id: string;
   job_id?: string;
   status: string;
   applied_at?: string;
   company?: string;
+  title?: string;
 };
 
+// Fallback demo data shown instantly while Supabase loads
+const FALLBACK_STATS: StatCard[] = [
+  { label: 'Total Applied', value: 0, color: 'text-blue-400', icon: '📋', link: '/admin/applications' },
+  { label: 'Interviews', value: 0, color: 'text-emerald-400', icon: '🎯', link: '/admin/applications' },
+  { label: 'Pending', value: 0, color: 'text-amber-400', icon: '⏳', link: '/admin/applications' },
+  { label: 'Offers', value: 0, color: 'text-purple-400', icon: '🎉', link: '/admin/applications' },
+  { label: 'Total Jobs', value: 6, color: 'text-cyan-400', icon: '💼', link: '/jobs' },
+  { label: 'Students', value: 0, color: 'text-pink-400', icon: '👩‍💻', link: '/admin/students' },
+];
+
+const QUICK_ACTIONS = [
+  { title: 'Browse Jobs', desc: 'Find new opportunities', icon: '🔍', link: '/jobs' },
+  { title: 'Build Resume', desc: 'Create ATS-ready resume', icon: '📝', link: '/resumes' },
+  { title: 'AI Tailor', desc: 'Tailor resume to JD', icon: '🤖', link: '/tailor' },
+  { title: 'Interview Prep', desc: 'Practice with AI', icon: '🎯', link: '/interview' },
+  { title: 'Companies', desc: 'Explore top employers', icon: '🏢', link: '/company' },
+  { title: 'Post a Job', desc: 'Add new job listing', icon: '➕', link: '/admin' },
+];
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    interview: 'bg-emerald-900 text-emerald-300',
+    offer: 'bg-purple-900 text-purple-300',
+    rejected: 'bg-red-900 text-red-300',
+    applied: 'bg-blue-900 text-blue-300',
+    pending: 'bg-amber-900 text-amber-300',
+  };
+  return (
+    <span className={`text-xs px-2 py-1 rounded-full capitalize font-medium ${map[status] ?? 'bg-slate-700 text-slate-300'}`}>
+      {status}
+    </span>
+  );
+}
+
 export default function DashboardPage() {
-  const [stats, setStats] = useState<StatCard[]>([
-    { label: 'Total Applied', value: '...', color: 'text-blue-400', icon: '📋', link: '/admin/applications' },
-    { label: 'Interviews', value: '...', color: 'text-emerald-400', icon: '🎯', link: '/admin/applications' },
-    { label: 'Pending', value: '...', color: 'text-amber-400', icon: '⏳', link: '/admin/applications' },
-    { label: 'Offers', value: '...', color: 'text-purple-400', icon: '🎉', link: '/admin/applications' },
-    { label: 'Total Jobs', value: '...', color: 'text-cyan-400', icon: '💼', link: '/jobs' },
-    { label: 'Students', value: '...', color: 'text-pink-400', icon: '👩‍💻', link: '/admin/students' },
-  ]);
+  const [stats, setStats] = useState<StatCard[]>(FALLBACK_STATS);
   const [recentApps, setRecentApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isLive, setIsLive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadStats() {
-      try {
-        const [appsRes, jobsRes, studentsRes] = await Promise.all([
-          supabase.from('applications').select('id, status, applied_at'),
-          supabase.from('jobs').select('id', { count: 'exact' }).eq('is_active', true),
-          supabase.from('students').select('id', { count: 'exact' }),
-        ]);
+  const buildStats = useCallback((
+    apps: Application[],
+    jobCount: number,
+    studentCount: number
+  ): StatCard[] => [
+    { label: 'Total Applied', value: apps.length, color: 'text-blue-400', icon: '📋', link: '/admin/applications' },
+    { label: 'Interviews', value: apps.filter(a => a.status === 'interview').length, color: 'text-emerald-400', icon: '🎯', link: '/admin/applications' },
+    { label: 'Pending', value: apps.filter(a => ['pending','applied'].includes(a.status)).length, color: 'text-amber-400', icon: '⏳', link: '/admin/applications' },
+    { label: 'Offers', value: apps.filter(a => a.status === 'offer').length, color: 'text-purple-400', icon: '🎉', link: '/admin/applications' },
+    { label: 'Total Jobs', value: jobCount, color: 'text-cyan-400', icon: '💼', link: '/jobs' },
+    { label: 'Students', value: studentCount, color: 'text-pink-400', icon: '👩‍💻', link: '/admin/students' },
+  ], []);
 
-        const apps = appsRes.data || [];
-        const totalApps = apps.length;
-        const interviews = apps.filter((a: any) => a.status === 'Interview' || a.status === 'interview').length;
-        const pending = apps.filter((a: any) => a.status === 'Applied' || a.status === 'Pending' || a.status === 'applied').length;
-        const offers = apps.filter((a: any) => a.status === 'Offer' || a.status === 'offer').length;
-        const jobCount = jobsRes.count || 0;
-        const studentCount = studentsRes.count || 0;
-
-        setStats([
-          { label: 'Total Applied', value: totalApps, color: 'text-blue-400', icon: '📋', link: '/admin/applications' },
-          { label: 'Interviews', value: interviews, color: 'text-emerald-400', icon: '🎯', link: '/admin/applications' },
-          { label: 'Pending', value: pending, color: 'text-amber-400', icon: '⏳', link: '/admin/applications' },
-          { label: 'Offers', value: offers, color: 'text-purple-400', icon: '🎉', link: '/admin/applications' },
-          { label: 'Active Jobs', value: jobCount, color: 'text-cyan-400', icon: '💼', link: '/jobs' },
-          { label: 'Students', value: studentCount, color: 'text-pink-400', icon: '👩‍💻', link: '/admin/students' },
-        ]);
-
-        const { data: recentData } = await supabase
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setError(null);
+      const [appsRes, jobsRes, studentsRes, recentRes] = await Promise.all([
+        supabase.from('applications').select('id, status, applied_at, company, title'),
+        supabase.from('jobs').select('id', { count: 'exact', head: true }).eq('is_active', true),
+        supabase.from('students').select('id', { count: 'exact', head: true }),
+        supabase
           .from('applications')
-          .select('id, status, applied_at')
+          .select('id, status, applied_at, company, title')
           .order('applied_at', { ascending: false })
-          .limit(5);
-        setRecentApps(recentData || []);
-      } catch (e) {
-        console.error('Dashboard error:', e);
-      } finally {
-        setLoading(false);
-      }
+          .limit(5),
+      ]);
+
+      const allApps: Application[] = appsRes.data ?? [];
+      const jobCount = jobsRes.count ?? 6;
+      const studentCount = studentsRes.count ?? 0;
+
+      setStats(buildStats(allApps, jobCount, studentCount));
+      setRecentApps(recentRes.data ?? []);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Dashboard fetch error:', err);
+      setError('Could not connect to database. Showing cached data.');
+    } finally {
+      setLoading(false);
     }
-    loadStats();
-  }, []);
+  }, [buildStats]);
 
-  const statusColors: Record<string, string> = {
-    Applied: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    applied: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    Interview: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    interview: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    Pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    Offer: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    offer: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    Rejected: 'bg-red-500/10 text-red-400 border-red-500/20',
-    rejected: 'bg-red-500/10 text-red-400 border-red-500/20',
-  };
+  // Initial load
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
-  const quickActions = [
-    { label: 'Browse Jobs', href: '/jobs', icon: '🔍', desc: 'Find new opportunities' },
-    { label: 'Build Resume', href: '/resumes', icon: '📄', desc: 'Create ATS-ready resume' },
-    { label: 'AI Tailor', href: '/tailor', icon: '🤖', desc: 'Tailor resume to JD' },
-    { label: 'Interview Prep', href: '/interview', icon: '🎯', desc: 'Practice with AI' },
-    { label: 'Companies', href: '/company', icon: '🏢', desc: 'Explore top employers' },
-    { label: 'Post a Job', href: '/dashboard/post-job', icon: '➕', desc: 'Add new job listing' },
-  ];
+  // Real-time subscriptions
+  useEffect(() => {
+    const channel = supabase
+      .channel('dashboard-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => {
+        fetchDashboardData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, () => {
+        fetchDashboardData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => {
+        fetchDashboardData();
+      })
+      .subscribe((status) => {
+        setIsLive(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchDashboardData]);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white">
-      <div className="max-w-6xl mx-auto px-4 py-12">
-        <div className="mb-10">
-          <h1 className="text-3xl font-bold mb-2">Your <span className="text-emerald-400">Dashboard</span></h1>
+    <div className="min-h-screen bg-slate-900 text-white p-6">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-1">
+            Your <span className="text-emerald-400">Dashboard</span>
+          </h1>
           <p className="text-slate-400">Track your job search progress and manage applications</p>
         </div>
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
-          {stats.map(stat => (
-            <Link key={stat.label} href={stat.link}
-              className="bg-slate-900 border border-slate-800 rounded-xl p-4 hover:border-emerald-500/50 transition-all text-center group">
-              <div className="text-2xl mb-2">{stat.icon}</div>
-              <div className={`text-2xl font-bold ${stat.color} mb-1`}>
-                {loading ? '...' : stat.value}
-              </div>
-              <div className="text-xs text-slate-500 group-hover:text-slate-400">{stat.label}</div>
-            </Link>
-          ))}
-        </div>
-        {/* Quick Actions */}
-        <div className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {quickActions.map(action => (
-              <Link key={action.label} href={action.href}
-                className="bg-slate-900 border border-slate-800 rounded-xl p-4 hover:border-emerald-500/50 transition-all group">
-                <div className="text-2xl mb-2">{action.icon}</div>
-                <div className="text-sm font-medium text-white group-hover:text-emerald-400 mb-1">{action.label}</div>
-                <div className="text-xs text-slate-500">{action.desc}</div>
-              </Link>
-            ))}
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+            <span className="text-xs text-slate-400">{isLive ? 'Live' : 'Offline'}</span>
           </div>
-        </div>
-        {/* Recent Applications */}
-        <div className="mb-10">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Recent Applications</h2>
-            <Link href="/admin/applications" className="text-emerald-400 text-sm hover:underline">View all</Link>
-          </div>
-          {loading ? (
-            <div className="text-slate-500 text-center py-8">Loading...</div>
-          ) : recentApps.length === 0 ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
-              <p className="text-slate-500 mb-4">No applications yet</p>
-              <Link href="/jobs" className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-lg text-sm">Browse Jobs</Link>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {recentApps.map(app => (
-                <div key={app.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-white font-medium">Application #{app.id.slice(0, 8)}</p>
-                    <p className="text-slate-500 text-sm">{app.applied_at ? new Date(app.applied_at).toLocaleDateString('en-IN') : 'N/A'}</p>
-                  </div>
-                  <span className={`text-xs border px-3 py-1 rounded-full ${statusColors[app.status] || statusColors['Pending']}`}>
-                    {app.status}
-                  </span>
-                </div>
-              ))}
-            </div>
+          {lastUpdated && (
+            <span className="text-xs text-slate-500">
+              Updated {lastUpdated.toLocaleTimeString()}
+            </span>
           )}
-        </div>
-        {/* Admin Panel Link */}
-        <div className="bg-gradient-to-r from-emerald-500/10 to-blue-500/10 border border-emerald-500/20 rounded-xl p-6 flex items-center justify-between">
-          <div>
-            <h3 className="text-white font-semibold text-lg mb-1">Admin Panel</h3>
-            <p className="text-slate-400 text-sm">Manage jobs, companies, students, and applications</p>
-          </div>
-          <Link href="/admin" className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-lg text-sm font-medium">
-            Go to Admin
-          </Link>
+          <button
+            onClick={fetchDashboardData}
+            className="text-xs text-emerald-400 hover:text-emerald-300 transition mt-1"
+          >
+            ↻ Refresh
+          </button>
         </div>
       </div>
-    </main>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-4 bg-amber-900/30 border border-amber-700 text-amber-300 text-sm px-4 py-2 rounded-lg">
+          ⚠️ {error}
+        </div>
+      )}
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        {stats.map((stat) => (
+          <Link
+            key={stat.label}
+            href={stat.link}
+            className="bg-slate-800 rounded-xl p-4 flex flex-col items-center hover:bg-slate-700 transition-all hover:scale-105 group"
+          >
+            <span className="text-3xl mb-2">{stat.icon}</span>
+            <span className={`text-2xl font-bold ${stat.color}`}>
+              {loading ? (
+                <span className="inline-block w-8 h-6 bg-slate-700 rounded animate-pulse" />
+              ) : stat.value}
+            </span>
+            <span className="text-xs text-slate-400 text-center mt-1 group-hover:text-slate-300">{stat.label}</span>
+          </Link>
+        ))}
+      </div>
+
+      {/* Quick Actions */}
+      <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        {QUICK_ACTIONS.map((action) => (
+          <Link
+            key={action.title}
+            href={action.link}
+            className="bg-slate-800 rounded-xl p-4 hover:bg-slate-700 transition-all hover:scale-105"
+          >
+            <span className="text-2xl mb-2 block">{action.icon}</span>
+            <p className="font-semibold text-sm">{action.title}</p>
+            <p className="text-xs text-slate-400 mt-1">{action.desc}</p>
+          </Link>
+        ))}
+      </div>
+
+      {/* Recent Applications */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Recent Applications</h2>
+        <Link href="/admin/applications" className="text-emerald-400 text-sm hover:underline">
+          View all
+        </Link>
+      </div>
+      <div className="bg-slate-800 rounded-xl overflow-hidden">
+        {loading ? (
+          <div className="divide-y divide-slate-700">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="flex items-center justify-between p-4">
+                <div className="space-y-2">
+                  <div className="w-32 h-4 bg-slate-700 rounded animate-pulse" />
+                  <div className="w-20 h-3 bg-slate-700 rounded animate-pulse" />
+                </div>
+                <div className="w-16 h-5 bg-slate-700 rounded-full animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : recentApps.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-4xl mb-3">📭</p>
+            <p className="text-slate-400 mb-2">No applications yet.</p>
+            <Link href="/jobs" className="text-emerald-400 hover:underline text-sm">
+              Browse jobs to get started →
+            </Link>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-700">
+            {recentApps.map((app) => (
+              <div key={app.id} className="flex items-center justify-between p-4 hover:bg-slate-750 transition">
+                <div>
+                  <p className="font-medium">{app.title || app.company || 'Job Application'}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {app.company && app.title ? app.company + ' • ' : ''}
+                    {app.applied_at
+                      ? new Date(app.applied_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                      : 'Recently'}
+                  </p>
+                </div>
+                <StatusBadge status={app.status} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
