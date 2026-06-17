@@ -1,9 +1,30 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Safe initialization: falls back to placeholder values so app doesn't crash
+// when env vars are missing. Real DB queries will simply return empty results.
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??
+  'https://placeholder.supabase.co';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+  'placeholder-anon-key';
+
+export const isSupabaseConfigured =
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+});
 
 export type Student = {
   id: string;
@@ -23,62 +44,35 @@ export type Job = {
   company: string;
   company_id?: string;
   location: string;
-  type: 'Full-time' | 'Part-time' | 'Internship' | 'Contract';
-  experience?: string;
-  salary?: string;
-  stipend?: string;
+  job_type: string;
+  salary_min?: number;
+  salary_max?: number;
+  experience_required?: number;
   description?: string;
-  skills?: string[];
-  status: 'active' | 'closed' | 'draft';
-  posted_by?: string;
+  skills_required?: string[];
+  is_active?: boolean;
   deadline?: string;
   created_at: string;
+};
+
+export type Application = {
+  id: string;
+  job_id?: string;
+  student_id?: string;
+  status: 'applied' | 'pending' | 'interview' | 'offer' | 'rejected';
+  applied_at?: string;
+  company?: string;
+  title?: string;
+  notes?: string;
 };
 
 export type Company = {
   id: string;
   name: string;
-  slug: string;
-  hq?: string;
-  sector?: string;
-  size?: string;
-  website?: string;
+  location?: string;
+  industry?: string;
   description?: string;
-  jobs?: number;
-  internships?: number;
+  website?: string;
+  logo_url?: string;
   created_at?: string;
-};
-
-export type Application = {
-  id: string;
-  user_id?: string;
-  student_name?: string;
-  student_email?: string;
-  job_id?: string;
-  job_title?: string;
-  company?: string;
-  status: 'Pending' | 'Applied' | 'Interview' | 'Offer' | 'Rejected';
-  resume_url?: string;
-  applied_at?: string;
-  created_at: string;
-};
-
-export type Resume = {
-  id: string;
-  user_id?: string;
-  student_name?: string;
-  title?: string;
-  level?: 'fresher' | 'junior' | 'mid' | 'senior';
-  content?: string;
-  file_url?: string;
-  ats_score?: number;
-  created_at: string;
-};
-
-export type User = {
-  id: string;
-  email: string;
-  name?: string;
-  role?: 'student' | 'admin' | 'recruiter';
-  created_at: string;
 };
