@@ -2,22 +2,19 @@ import Link from 'next/link';
 
 const profiles = [
   {
-    id: 'fresher-sql',
+    id: ''sql-python-fresher'-sql',
     label: 'SQL + Python Fresher',
     seniority: 'Fresher',
-    track: 'SQL / Python',
-    atsScore: 88,
-    lastUpdated: '2026-05-04',
-    color: 'emerald',
+    track: 'SQL / Python / Backend',    atsScore: 88,
+    lastUpdated: '2026-06-20',    color: ''blue'',
   },
   {
-    id: 'fresher-aiml',
+    id: ''aiml-fresher'-aiml',
     label: 'AI/ML Fresher',
     seniority: 'Fresher',
     track: 'AI / ML',
     atsScore: 85,
-    lastUpdated: '2026-05-03',
-    color: 'blue',
+    lastUpdated: '2026-06-20',    color: ''emerald'',
   },
   {
     id: 'fresher-data',
